@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
-import { Home, TrendingUp, Calendar, Activity, BookOpen, Users, Search, MessageSquare, Settings, Plus, X, ChevronRight, ChevronLeft, Moon, Sun, Zap, Target, Flame, Clock, Check, ArrowUp, ArrowDown, Minus, Edit3, Trash2, Filter, Download } from 'lucide-react';
+import { Home, TrendingUp, Calendar, Activity, BookOpen, Users, Search, MessageSquare, Settings, Plus, X, ChevronRight, ChevronLeft, Moon, Sun, Zap, Target, Flame, Clock, Check, ArrowUp, ArrowDown, Minus, Edit3, Trash2, Filter, Download, FileText } from 'lucide-react';
 
 // Utility functions
 const formatDate = (date) => new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -132,7 +132,8 @@ const defaultProfile = {
   locations: [], // Array of { id, label, emoji }
   eventCategories: [], // User creates their own categories
   aiAssistantEnabled: false, // AI Assistant feature toggle
-  openAIApiKey: '' // User's OpenAI API key
+  openAIApiKey: '', // User's OpenAI API key
+  habits: [] // Daily habits to track { id, label, emoji, color }
 };
 
 const defaultEvents = [];
@@ -1088,10 +1089,11 @@ const EventModal = ({ isOpen, onClose, onSave, editEvent = null, initialDate = n
 };
 
 // Entry Modal Component
-const EntryModal = ({ isOpen, onClose, onSave, editEntry = null, locationTags = [], events = [], userTags = [], allEntries = [], onCreateCustomTag, categories = [] }) => {
+const EntryModal = ({ isOpen, onClose, onSave, editEntry = null, locationTags = [], events = [], userTags = [], allEntries = [], onCreateCustomTag, categories = [], habits = [] }) => {
   const [metrics, setMetrics] = useState({ energy: 5, mood: 5, stress: 5, sleep: 5 });
   const [selectedTags, setSelectedTags] = useState([]);
   const [selectedEvents, setSelectedEvents] = useState([]);
+  const [selectedHabits, setSelectedHabits] = useState([]);
   const [location, setLocation] = useState('');
   const [note, setNote] = useState('');
   const [showCustomTagForm, setShowCustomTagForm] = useState(false);
@@ -1103,12 +1105,14 @@ const EntryModal = ({ isOpen, onClose, onSave, editEntry = null, locationTags = 
       setMetrics(editEntry.metrics || { energy: 5, mood: 5, stress: 5, sleep: 5 });
       setSelectedTags(editEntry.tags || []);
       setSelectedEvents(editEntry.events || []);
+      setSelectedHabits(editEntry.habits || []);
       setLocation(editEntry.location || '');
       setNote(editEntry.note || '');
     } else {
       setMetrics({ energy: 5, mood: 5, stress: 5, sleep: 5 });
       setSelectedTags([]);
       setSelectedEvents([]);
+      setSelectedHabits([]);
       setLocation('');
       setNote('');
     }
@@ -1120,6 +1124,10 @@ const EntryModal = ({ isOpen, onClose, onSave, editEntry = null, locationTags = 
 
   const toggleEvent = (id) => {
     setSelectedEvents(prev => prev.includes(id) ? prev.filter(e => e !== id) : [...prev, id]);
+  };
+
+  const toggleHabit = (id) => {
+    setSelectedHabits(prev => prev.includes(id) ? prev.filter(h => h !== id) : [...prev, id]);
   };
 
   const handleCreateCustomTag = () => {
@@ -1152,6 +1160,7 @@ const EntryModal = ({ isOpen, onClose, onSave, editEntry = null, locationTags = 
       metrics,
       tags: selectedTags,
       events: selectedEvents,
+      habits: selectedHabits,
       location,
       note
     });
@@ -1311,6 +1320,38 @@ const EntryModal = ({ isOpen, onClose, onSave, editEntry = null, locationTags = 
             </div>
           )}
 
+          {/* Daily Habits */}
+          {habits && habits.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-zinc-400 mb-3">Daily Habits</h3>
+              <div className="grid grid-cols-2 gap-2">
+                {habits.map(habit => (
+                  <button
+                    key={habit.id}
+                    onClick={() => toggleHabit(habit.id)}
+                    className={`
+                      flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 border
+                      ${selectedHabits.includes(habit.id)
+                        ? 'border-2'
+                        : 'bg-zinc-800/50 border-zinc-700/50 hover:border-zinc-600'}
+                    `}
+                    style={selectedHabits.includes(habit.id) ? {
+                      backgroundColor: `${habit.color}20`,
+                      borderColor: habit.color,
+                      color: 'white'
+                    } : {}}
+                  >
+                    <span className="text-lg">{habit.emoji}</span>
+                    <span className="flex-1 text-left">{habit.label}</span>
+                    {selectedHabits.includes(habit.id) && (
+                      <Check size={16} className="flex-shrink-0" style={{ color: habit.color }} />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Location */}
           <div>
             <h3 className="text-sm font-medium text-zinc-400 mb-3">Where are you?</h3>
@@ -1397,39 +1438,25 @@ const DashboardView = ({ entries, profile, events = [], onNewEntry, userTags = [
     return count;
   })();
 
-  // Generate insights based on actual data
+  // Generate multi-factor correlation insights
   const generateInsights = () => {
     const insights = [];
-    
+
     if (last7Days.length >= 3) {
-      const highSleepEntries = last7Days.filter(e => e.metrics?.sleep >= 7);
-      const lowSleepEntries = last7Days.filter(e => e.metrics?.sleep < 6);
-      if (highSleepEntries.length > 0 && lowSleepEntries.length > 0) {
-        const highSleepEnergy = avgMetric(highSleepEntries, 'energy');
-        const lowSleepEnergy = avgMetric(lowSleepEntries, 'energy');
-        if (highSleepEnergy > lowSleepEnergy) {
-          insights.push({
-            type: 'correlation',
-            title: 'Sleep → Energy Connection',
-            text: `When you rate sleep 7+, your energy averages ${highSleepEnergy} vs ${lowSleepEnergy} on lower sleep days.`
-          });
-        }
-      }
+      // Helper to find tag by ID
+      const getTagName = (tagId) => {
+        const tag = userTags.find(t => t.id === tagId);
+        return tag ? tag.label : tagId;
+      };
 
-      const stressedEntries = last7Days.filter(e => e.tags?.includes('stressed'));
-      if (stressedEntries.length >= 2) {
-        const days = stressedEntries.map(e => getDayName(e.timestamp));
-        const mostCommon = days.sort((a, b) => days.filter(d => d === a).length - days.filter(d => d === b).length).pop();
-        insights.push({
-          type: 'warning',
-          title: 'Stress Pattern',
-          text: `You've logged stress ${stressedEntries.length} times this week, often on ${mostCommon}s.`
-        });
-      }
+      // Helper to find location name
+      const getLocationName = (locId) => {
+        const loc = profile.locations?.find(l => l.id === locId);
+        return loc ? `${loc.emoji} ${loc.label}` : locId;
+      };
 
-      // Schedule-based insights
-      if (events.length > 0 && last7Days.length >= 5) {
-        // Find most common event
+      // 1. Sleep + Events correlations
+      if (events.length > 0) {
         const eventCounts = {};
         last7Days.forEach(entry => {
           if (entry.events?.length > 0) {
@@ -1439,35 +1466,217 @@ const DashboardView = ({ entries, profile, events = [], onNewEntry, userTags = [
           }
         });
 
-        const mostCommonEventId = Object.keys(eventCounts).sort((a, b) => eventCounts[b] - eventCounts[a])[0];
-        const mostCommonEvent = events.find(e => e.id === mostCommonEventId);
+        const commonEventIds = Object.keys(eventCounts).filter(id => eventCounts[id] >= 2);
 
-        if (mostCommonEvent && eventCounts[mostCommonEventId] >= 3) {
-          const withEvent = last7Days.filter(e => e.events?.includes(mostCommonEventId));
-          const withoutEvent = last7Days.filter(e => !e.events?.includes(mostCommonEventId));
+        commonEventIds.forEach(eventId => {
+          const event = events.find(e => e.id === eventId);
+          if (!event) return;
 
-          if (withEvent.length >= 2 && withoutEvent.length >= 2) {
-            const avgMoodWith = avgMetric(withEvent, 'mood');
-            const avgMoodWithout = avgMetric(withoutEvent, 'mood');
-            const diff = (parseFloat(avgMoodWith) - parseFloat(avgMoodWithout)).toFixed(1);
+          // Good sleep WITH this event
+          const goodSleepWithEvent = last7Days.filter(e =>
+            e.metrics?.sleep >= 7 && e.events?.includes(eventId)
+          );
 
-            if (Math.abs(diff) >= 1) {
+          // Good sleep WITHOUT this event
+          const goodSleepWithoutEvent = last7Days.filter(e =>
+            e.metrics?.sleep >= 7 && !e.events?.includes(eventId)
+          );
+
+          if (goodSleepWithEvent.length >= 2 && goodSleepWithoutEvent.length >= 2) {
+            const moodWith = avgMetric(goodSleepWithEvent, 'mood');
+            const moodWithout = avgMetric(goodSleepWithoutEvent, 'mood');
+            const diff = parseFloat(moodWith) - parseFloat(moodWithout);
+
+            if (Math.abs(diff) >= 1.5) {
               insights.push({
                 type: diff > 0 ? 'positive' : 'correlation',
-                title: `${mostCommonEvent.emoji} ${mostCommonEvent.title} Impact`,
-                text: `Your mood averages ${avgMoodWith} on days with ${mostCommonEvent.title} vs ${avgMoodWithout} on days without.`
+                title: `Sleep + ${event.title} Pattern`,
+                text: `When you sleep 7+ hours ${diff > 0 ? 'WITH' : 'WITHOUT'} ${event.title}, your mood averages ${diff > 0 ? moodWith : moodWithout} vs ${diff > 0 ? moodWithout : moodWith}.`
               });
             }
+          }
+        });
+      }
+
+      // 2. Location + Tags correlations
+      if (profile.locations?.length > 0) {
+        profile.locations.forEach(location => {
+          const atLocation = last7Days.filter(e => e.location === location.id);
+
+          if (atLocation.length >= 2) {
+            // Check for stressed at this location
+            const stressedAtLocation = atLocation.filter(e =>
+              e.tags?.some(t => getTagName(t).toLowerCase().includes('stress'))
+            );
+
+            if (stressedAtLocation.length >= 2) {
+              const energyWithStress = avgMetric(stressedAtLocation, 'energy');
+              const atLocationNoStress = atLocation.filter(e =>
+                !e.tags?.some(t => getTagName(t).toLowerCase().includes('stress'))
+              );
+
+              if (atLocationNoStress.length >= 1) {
+                const energyNoStress = avgMetric(atLocationNoStress, 'energy');
+                const diff = parseFloat(energyWithStress) - parseFloat(energyNoStress);
+
+                if (Math.abs(diff) >= 1) {
+                  insights.push({
+                    type: 'correlation',
+                    title: `${location.emoji} ${location.label} + Stress`,
+                    text: `Days at ${location.label} with stress, your energy drops to ${energyWithStress} (vs ${energyNoStress} without stress).`
+                  });
+                }
+              }
+            }
+
+            // Check for specific tag combinations at location
+            const commonTags = {};
+            atLocation.forEach(entry => {
+              entry.tags?.forEach(tag => {
+                commonTags[tag] = (commonTags[tag] || 0) + 1;
+              });
+            });
+
+            const frequentTags = Object.keys(commonTags).filter(t => commonTags[t] >= 2);
+            frequentTags.forEach(tagId => {
+              const withTag = atLocation.filter(e => e.tags?.includes(tagId));
+              const withoutTag = atLocation.filter(e => !e.tags?.includes(tagId));
+
+              if (withTag.length >= 2 && withoutTag.length >= 1) {
+                const moodWith = avgMetric(withTag, 'mood');
+                const moodWithout = avgMetric(withoutTag, 'mood');
+                const diff = parseFloat(moodWith) - parseFloat(moodWithout);
+
+                if (Math.abs(diff) >= 1.5) {
+                  insights.push({
+                    type: diff > 0 ? 'positive' : 'warning',
+                    title: `${location.emoji} ${location.label} Pattern`,
+                    text: `At ${location.label} with ${getTagName(tagId)}, your mood averages ${moodWith} vs ${moodWithout} without.`
+                  });
+                }
+              }
+            });
+          }
+        });
+      }
+
+      // 3. Events + Metrics combinations (stress, energy)
+      if (events.length > 0) {
+        const eventCounts = {};
+        last7Days.forEach(entry => {
+          entry.events?.forEach(eventId => {
+            eventCounts[eventId] = (eventCounts[eventId] || 0) + 1;
+          });
+        });
+
+        const commonEvents = Object.keys(eventCounts).filter(id => eventCounts[id] >= 3);
+
+        commonEvents.forEach(eventId => {
+          const event = events.find(e => e.id === eventId);
+          if (!event) return;
+
+          const withEvent = last7Days.filter(e => e.events?.includes(eventId));
+          const withoutEvent = last7Days.filter(e => !e.events?.includes(eventId));
+
+          if (withEvent.length >= 2 && withoutEvent.length >= 2) {
+            const stressWith = avgMetric(withEvent, 'stress');
+            const stressWithout = avgMetric(withoutEvent, 'stress');
+            const diff = parseFloat(stressWith) - parseFloat(stressWithout);
+
+            if (Math.abs(diff) >= 1.5) {
+              insights.push({
+                type: diff > 0 ? 'warning' : 'positive',
+                title: `${event.title} Stress Level`,
+                text: `Your stress averages ${stressWith} on days with ${event.title} vs ${stressWithout} on days without.`
+              });
+            }
+          }
+        });
+      }
+
+      // 4. Location + Metrics (without tags)
+      if (profile.locations?.length > 0) {
+        profile.locations.forEach(location => {
+          const atLocation = last7Days.filter(e => e.location === location.id);
+          const notAtLocation = last7Days.filter(e => e.location !== location.id && e.location);
+
+          if (atLocation.length >= 2 && notAtLocation.length >= 2) {
+            const energyAt = avgMetric(atLocation, 'energy');
+            const energyAway = avgMetric(notAtLocation, 'energy');
+            const diff = parseFloat(energyAt) - parseFloat(energyAway);
+
+            if (Math.abs(diff) >= 1.5) {
+              insights.push({
+                type: diff > 0 ? 'positive' : 'correlation',
+                title: `${location.emoji} ${location.label} Energy`,
+                text: `Your energy at ${location.label} averages ${energyAt} vs ${energyAway} at other locations.`
+              });
+            }
+          }
+        });
+      }
+
+      // 5. Multiple tags combinations
+      const tagCombos = {};
+      last7Days.forEach(entry => {
+        if (entry.tags && entry.tags.length >= 2) {
+          // Check all pairs of tags
+          for (let i = 0; i < entry.tags.length; i++) {
+            for (let j = i + 1; j < entry.tags.length; j++) {
+              const key = [entry.tags[i], entry.tags[j]].sort().join('+');
+              if (!tagCombos[key]) {
+                tagCombos[key] = [];
+              }
+              tagCombos[key].push(entry);
+            }
+          }
+        }
+      });
+
+      Object.keys(tagCombos).forEach(combo => {
+        const entries = tagCombos[combo];
+        if (entries.length >= 2) {
+          const [tag1, tag2] = combo.split('+');
+          const avgEnergy = avgMetric(entries, 'energy');
+          const avgMood = avgMetric(entries, 'mood');
+
+          // Compare to overall average
+          const overallEnergy = avgMetric(last7Days, 'energy');
+          const energyDiff = parseFloat(avgEnergy) - parseFloat(overallEnergy);
+
+          if (Math.abs(energyDiff) >= 2) {
+            insights.push({
+              type: energyDiff < 0 ? 'warning' : 'positive',
+              title: `Tag Combination Pattern`,
+              text: `When you log both ${getTagName(tag1)} and ${getTagName(tag2)}, your energy averages ${avgEnergy} (${energyDiff > 0 ? '+' : ''}${energyDiff.toFixed(1)} vs usual).`
+            });
+          }
+        }
+      });
+
+      // 6. Basic single-factor fallbacks (if no multi-factor insights found)
+      if (insights.length < 2) {
+        const highSleepEntries = last7Days.filter(e => e.metrics?.sleep >= 7);
+        const lowSleepEntries = last7Days.filter(e => e.metrics?.sleep < 6);
+        if (highSleepEntries.length > 0 && lowSleepEntries.length > 0) {
+          const highSleepEnergy = avgMetric(highSleepEntries, 'energy');
+          const lowSleepEnergy = avgMetric(lowSleepEntries, 'energy');
+          if (parseFloat(highSleepEnergy) > parseFloat(lowSleepEnergy)) {
+            insights.push({
+              type: 'correlation',
+              title: 'Sleep → Energy Connection',
+              text: `When you rate sleep 7+, your energy averages ${highSleepEnergy} vs ${lowSleepEnergy} on lower sleep days.`
+            });
           }
         }
       }
     }
 
-    if (streak >= 3) {
+    if (streak >= 3 && insights.length < 5) {
       insights.push({
         type: 'positive',
         title: 'Consistency Wins',
-        text: `You're on a ${streak}-day logging streak! Consistent tracking reveals better patterns.`
+        text: `You're on a ${streak}-day logging streak! More data = deeper insights into your patterns.`
       });
     }
 
@@ -1475,14 +1684,140 @@ const DashboardView = ({ entries, profile, events = [], onNewEntry, userTags = [
       insights.push({
         type: 'neutral',
         title: 'Building Your Baseline',
-        text: 'Keep logging daily to start seeing meaningful patterns. We need about 2 weeks of data for solid insights.'
+        text: 'Keep logging daily to start seeing meaningful patterns. We need about 2 weeks of data for multi-factor insights.'
       });
     }
 
-    return insights;
+    return insights.slice(0, 6); // Limit to top 6 insights
   };
 
   const insights = generateInsights();
+
+  // Generate Tomorrow's Forecast
+  const generateTomorrowForecast = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowEvents = getEventsForDate(events, tomorrow);
+
+    if (tomorrowEvents.length === 0) {
+      return null; // No forecast if no events scheduled
+    }
+
+    // Find historical entries that had similar events
+    const tomorrowEventIds = tomorrowEvents.map(e => e.id);
+    const similarDays = entries.filter(entry => {
+      if (!entry.events || entry.events.length === 0) return false;
+      // Check if entry has at least one of tomorrow's events
+      return entry.events.some(eventId => tomorrowEventIds.includes(eventId));
+    });
+
+    if (similarDays.length < 2) {
+      // Not enough data for prediction
+      return {
+        tomorrowEvents,
+        prediction: null,
+        confidence: 'low',
+        message: 'Not enough historical data to predict - this is a new schedule combination.'
+      };
+    }
+
+    // Calculate averages from similar days
+    const avgEnergy = similarDays.reduce((s, e) => s + (e.metrics?.energy || 0), 0) / similarDays.length;
+    const avgMood = similarDays.reduce((s, e) => s + (e.metrics?.mood || 0), 0) / similarDays.length;
+    const avgStress = similarDays.reduce((s, e) => s + (e.metrics?.stress || 0), 0) / similarDays.length;
+
+    // Calculate confidence based on sample size and consistency
+    let confidence = 'medium';
+    if (similarDays.length >= 5) confidence = 'high';
+    else if (similarDays.length < 3) confidence = 'low';
+
+    // Calculate variance to adjust confidence
+    const energyVariance = similarDays.reduce((s, e) => s + Math.pow((e.metrics?.energy || 0) - avgEnergy, 2), 0) / similarDays.length;
+    if (energyVariance > 6 && confidence === 'high') confidence = 'medium';
+
+    // Generate descriptive message
+    let message = '';
+    const eventNames = tomorrowEvents.map(e => e.title).join(' and ');
+
+    if (avgEnergy < 5) {
+      message = `Tomorrow might be tough - you have ${eventNames}, and your energy usually dips to ${avgEnergy.toFixed(1)} on days like this.`;
+    } else if (avgEnergy >= 7) {
+      message = `Tomorrow looks good! With ${eventNames}, your energy typically stays high at ${avgEnergy.toFixed(1)}.`;
+    } else {
+      message = `Tomorrow looks manageable - ${eventNames} on your schedule, energy usually around ${avgEnergy.toFixed(1)}.`;
+    }
+
+    // Add stress warning if high
+    if (avgStress >= 7) {
+      message += ` Stress tends to spike to ${avgStress.toFixed(1)} on days with this schedule.`;
+    }
+
+    return {
+      tomorrowEvents,
+      prediction: {
+        energy: avgEnergy.toFixed(1),
+        mood: avgMood.toFixed(1),
+        stress: avgStress.toFixed(1)
+      },
+      confidence,
+      sampleSize: similarDays.length,
+      message
+    };
+  };
+
+  const tomorrowForecast = generateTomorrowForecast();
+
+  // Calculate habit streaks
+  const calculateHabitStreaks = () => {
+    if (!profile.habits || profile.habits.length === 0) return [];
+
+    return profile.habits.map(habit => {
+      let streak = 0;
+      let d = new Date();
+      d.setHours(0, 0, 0, 0);
+      const todayStr = new Date().toDateString();
+      let isFirstDay = true;
+      let maxDaysToCheck = 365; // Prevent infinite loops
+
+      // Count consecutive days from today backwards
+      while (maxDaysToCheck > 0) {
+        const dayStr = d.toDateString();
+        const dayEntries = entries.filter(e => new Date(e.timestamp).toDateString() === dayStr);
+
+        // Check if habit was completed on this day
+        const habitCompleted = dayEntries.some(entry => entry.habits?.includes(habit.id));
+
+        if (habitCompleted) {
+          streak++;
+          d.setDate(d.getDate() - 1);
+          isFirstDay = false;
+        } else {
+          // If it's today and no entry yet, don't break the streak if we have a streak going
+          if (dayStr === todayStr && streak > 0) {
+            d.setDate(d.getDate() - 1);
+            isFirstDay = false;
+            maxDaysToCheck--;
+            continue;
+          }
+          // If it's the first day (today) and no entry, streak is 0
+          break;
+        }
+        maxDaysToCheck--;
+      }
+
+      // Check if completed today
+      const todayEntries = entries.filter(e => new Date(e.timestamp).toDateString() === todayStr);
+      const completedToday = todayEntries.some(entry => entry.habits?.includes(habit.id));
+
+      return {
+        habit,
+        streak,
+        completedToday
+      };
+    });
+  };
+
+  const habitStreaks = calculateHabitStreaks();
 
   return (
     <div className="space-y-6">
@@ -1508,6 +1843,59 @@ const DashboardView = ({ entries, profile, events = [], onNewEntry, userTags = [
         <MetricCard label="Avg Stress" value={avgMetric(last7Days, 'stress')} change={calcChange(last7Days, prev7Days, 'stress')} icon={Flame} color="#ef4444" />
         <MetricCard label="Streak" value={`${streak}d`} icon={Calendar} color="#22c55e" />
       </div>
+
+      {/* Habit Streaks */}
+      {habitStreaks.length > 0 && (
+        <div className="bg-gradient-to-br from-green-500/10 to-blue-500/10 border border-green-500/30 rounded-2xl p-6">
+          <h2 className="font-medium mb-4 flex items-center gap-2">
+            <Target size={18} className="text-green-400" />
+            Habit Streaks
+          </h2>
+          <div className="grid md:grid-cols-2 gap-3">
+            {habitStreaks.map(({ habit, streak, completedToday }) => (
+              <div
+                key={habit.id}
+                className="p-4 rounded-xl border transition-all"
+                style={{
+                  backgroundColor: `${habit.color}15`,
+                  borderColor: completedToday ? habit.color : `${habit.color}40`
+                }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">{habit.emoji}</span>
+                    <span className="font-medium">{habit.label}</span>
+                  </div>
+                  {completedToday && (
+                    <div className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full" style={{ backgroundColor: `${habit.color}30`, color: habit.color }}>
+                      <Check size={12} />
+                      Today
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-bold" style={{ color: habit.color }}>
+                    {streak}
+                  </span>
+                  <span className="text-zinc-400 text-sm">
+                    {streak === 1 ? 'day' : 'days'} streak
+                  </span>
+                </div>
+                {streak > 0 && !completedToday && (
+                  <div className="mt-2 text-xs text-zinc-500">
+                    Log an entry today to continue!
+                  </div>
+                )}
+                {streak === 0 && (
+                  <div className="mt-2 text-xs text-zinc-500">
+                    Start your streak today!
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Week Overview */}
       <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
@@ -1547,6 +1935,78 @@ const DashboardView = ({ entries, profile, events = [], onNewEntry, userTags = [
           ))}
         </div>
       </div>
+
+      {/* Tomorrow's Forecast */}
+      {tomorrowForecast && (
+        <div className="bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-pink-500/10 border border-blue-500/30 rounded-2xl p-6">
+          <h2 className="font-medium mb-4 flex items-center gap-2">
+            <Clock size={18} className="text-blue-400" />
+            Tomorrow's Forecast
+            <span className={`ml-auto text-xs px-2 py-1 rounded-full ${
+              tomorrowForecast.confidence === 'high' ? 'bg-green-500/20 text-green-400' :
+              tomorrowForecast.confidence === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+              'bg-zinc-500/20 text-zinc-400'
+            }`}>
+              {tomorrowForecast.confidence === 'high' ? '🎯 High Confidence' :
+               tomorrowForecast.confidence === 'medium' ? '📊 Medium Confidence' :
+               '🔮 Low Confidence'}
+            </span>
+          </h2>
+
+          <div className="space-y-4">
+            {/* Schedule Preview */}
+            <div className="space-y-2">
+              {tomorrowForecast.tomorrowEvents.map(event => {
+                const category = categories.find(c => c.id === event.categoryId);
+                return (
+                  <div
+                    key={event.id}
+                    className="flex items-center gap-3 p-2 bg-zinc-900/50 rounded-lg border-l-2"
+                    style={{ borderLeftColor: category?.color || '#6366f1' }}
+                  >
+                    <span className="text-lg">{event.emoji}</span>
+                    <div className="flex-1">
+                      <div className="font-medium text-sm">{event.title}</div>
+                      {event.startTime && event.endTime && (
+                        <div className="text-xs text-zinc-500">{formatTime12Hour(event.startTime)} - {formatTime12Hour(event.endTime)}</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Prediction */}
+            <div className="p-4 bg-zinc-900/50 rounded-xl border border-zinc-700">
+              <p className="text-sm text-zinc-300 mb-3">{tomorrowForecast.message}</p>
+
+              {tomorrowForecast.prediction && (
+                <div className="flex gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-orange-400">⚡</span>
+                    <span className="text-zinc-500">Energy</span>
+                    <span className="font-mono font-bold text-orange-400">{tomorrowForecast.prediction.energy}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-purple-400">🎯</span>
+                    <span className="text-zinc-500">Mood</span>
+                    <span className="font-mono font-bold text-purple-400">{tomorrowForecast.prediction.mood}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-red-400">🔥</span>
+                    <span className="text-zinc-500">Stress</span>
+                    <span className="font-mono font-bold text-red-400">{tomorrowForecast.prediction.stress}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="text-xs text-zinc-600 mt-3">
+                Based on {tomorrowForecast.sampleSize} similar day{tomorrowForecast.sampleSize !== 1 ? 's' : ''} in your history
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Today's Schedule */}
       {(() => {
@@ -1615,9 +2075,26 @@ const DashboardView = ({ entries, profile, events = [], onNewEntry, userTags = [
 };
 
 // Trends View
-const TrendsView = ({ entries, userTags = [] }) => {
+const TrendsView = ({ entries, userTags = [], events = [] }) => {
+  const [viewMode, setViewMode] = useState('trends'); // 'trends' or 'compare'
   const [timeRange, setTimeRange] = useState('7d');
-  
+  const [weekA, setWeekA] = useState(0); // 0 = current week, 1 = last week, etc.
+  const [weekB, setWeekB] = useState(1); // Compare current week to last week by default
+
+  // Helper: Get week date range
+  const getWeekRange = (weeksAgo = 0) => {
+    const now = new Date();
+    const endOfWeek = new Date(now);
+    endOfWeek.setDate(now.getDate() - now.getDay() + (weeksAgo === 0 ? 0 : -7 * weeksAgo));
+    endOfWeek.setHours(23, 59, 59, 999);
+
+    const startOfWeek = new Date(endOfWeek);
+    startOfWeek.setDate(endOfWeek.getDate() - 6);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    return { start: startOfWeek, end: endOfWeek };
+  };
+
   const getRangeDate = () => {
     const now = new Date();
     switch (timeRange) {
@@ -1688,114 +2165,439 @@ const TrendsView = ({ entries, userTags = [] }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <h1 className="text-2xl font-semibold">Trends</h1>
-        <div className="flex gap-2">
-          {['7d', '30d', '90d'].map(range => (
-            <button
-              key={range}
-              onClick={() => setTimeRange(range)}
-              className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${timeRange === range ? 'bg-blue-500/20 text-blue-400' : 'text-zinc-400 hover:bg-zinc-800'}`}
+
+        {/* Mode Toggle */}
+        <div className="flex gap-2 bg-zinc-900/50 border border-zinc-800 rounded-lg p-1">
+          <button
+            onClick={() => setViewMode('trends')}
+            className={`px-3 py-1.5 rounded-md text-sm transition-colors ${viewMode === 'trends' ? 'bg-blue-500/20 text-blue-400' : 'text-zinc-400 hover:bg-zinc-800'}`}
+          >
+            📊 Trends
+          </button>
+          <button
+            onClick={() => setViewMode('compare')}
+            className={`px-3 py-1.5 rounded-md text-sm transition-colors ${viewMode === 'compare' ? 'bg-blue-500/20 text-blue-400' : 'text-zinc-400 hover:bg-zinc-800'}`}
+          >
+            ⚖️ Compare Weeks
+          </button>
+        </div>
+
+        {/* Time Range Selector (only in trends mode) */}
+        {viewMode === 'trends' && (
+          <div className="flex gap-2">
+            {['7d', '30d', '90d'].map(range => (
+              <button
+                key={range}
+                onClick={() => setTimeRange(range)}
+                className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${timeRange === range ? 'bg-blue-500/20 text-blue-400' : 'text-zinc-400 hover:bg-zinc-800'}`}
+              >
+                {range === '7d' ? '7 Days' : range === '30d' ? '30 Days' : '90 Days'}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Week Selectors for Compare Mode */}
+      {viewMode === 'compare' && (
+        <div className="grid md:grid-cols-2 gap-4">
+          {/* Week A Selector */}
+          <div className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-xl p-4">
+            <label className="text-sm text-zinc-400 mb-2 block">Week A</label>
+            <select
+              value={weekA}
+              onChange={(e) => setWeekA(parseInt(e.target.value))}
+              className="w-full bg-zinc-900/50 border border-zinc-700 rounded-lg px-3 py-2 text-sm"
             >
-              {range === '7d' ? '7 Days' : range === '30d' ? '30 Days' : '90 Days'}
-            </button>
-          ))}
-        </div>
-      </div>
+              {[...Array(12)].map((_, i) => {
+                const range = getWeekRange(i);
+                const label = i === 0 ? 'This Week' : i === 1 ? 'Last Week' : `${i} weeks ago`;
+                return (
+                  <option key={i} value={i}>
+                    {label} ({range.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {range.end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
+                  </option>
+                );
+              })}
+            </select>
+          </div>
 
-      {/* Main Chart */}
-      <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
-        <h2 className="font-medium mb-4">Metrics Over Time</h2>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="energyGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
-                </linearGradient>
-                <linearGradient id="moodGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#a855f7" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="shortDate" stroke="#52525b" fontSize={12} tickLine={false} />
-              <YAxis domain={[0, 10]} stroke="#52525b" fontSize={12} tickLine={false} />
-              <Tooltip
-                contentStyle={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
-                labelStyle={{ color: '#a1a1aa' }}
-              />
-              <Area type="monotone" dataKey="energy" stroke="#f97316" fill="url(#energyGrad)" strokeWidth={2} />
-              <Area type="monotone" dataKey="mood" stroke="#a855f7" fill="url(#moodGrad)" strokeWidth={2} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="flex justify-center gap-6 mt-4">
-          <div className="flex items-center gap-2 text-sm"><div className="w-3 h-3 rounded-full bg-orange-500"></div> Energy</div>
-          <div className="flex items-center gap-2 text-sm"><div className="w-3 h-3 rounded-full bg-purple-500"></div> Mood</div>
-        </div>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Tag Frequency */}
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
-          <h2 className="font-medium mb-4">Most Logged Tags</h2>
-          {tagFrequency.length > 0 ? (
-            <div className="space-y-3">
-              {tagFrequency.map(tag => (
-                <div key={tag.id} className="flex items-center gap-3">
-                  <span>{tag.emoji}</span>
-                  <span className="flex-1 text-sm">{tag.label}</span>
-                  <div className="w-24 h-2 bg-zinc-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${(tag.count / tagFrequency[0].count) * 100}%`,
-                        background: tag.color
-                      }}
-                    />
-                  </div>
-                  <span className="text-sm text-zinc-500 w-8 text-right">{tag.count}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-zinc-500 text-sm">Add tags to your entries to see patterns here.</p>
-          )}
-        </div>
-
-        {/* Balance Radar */}
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
-          <h2 className="font-medium mb-4">Overall Balance</h2>
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={radarData}>
-                <PolarGrid stroke="#27272a" />
-                <PolarAngleAxis dataKey="factor" stroke="#71717a" fontSize={12} />
-                <PolarRadiusAxis domain={[0, 10]} tick={false} axisLine={false} />
-                <Radar dataKey="value" stroke="#4a9eff" fill="#4a9eff" fillOpacity={0.3} strokeWidth={2} />
-              </RadarChart>
-            </ResponsiveContainer>
+          {/* Week B Selector */}
+          <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-xl p-4">
+            <label className="text-sm text-zinc-400 mb-2 block">Week B</label>
+            <select
+              value={weekB}
+              onChange={(e) => setWeekB(parseInt(e.target.value))}
+              className="w-full bg-zinc-900/50 border border-zinc-700 rounded-lg px-3 py-2 text-sm"
+            >
+              {[...Array(12)].map((_, i) => {
+                const range = getWeekRange(i);
+                const label = i === 0 ? 'This Week' : i === 1 ? 'Last Week' : `${i} weeks ago`;
+                return (
+                  <option key={i} value={i}>
+                    {label} ({range.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {range.end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
+                  </option>
+                );
+              })}
+            </select>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Stress Chart */}
-      <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
-        <h2 className="font-medium mb-4">Stress Levels</h2>
-        <div className="h-40">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
-              <XAxis dataKey="shortDate" stroke="#52525b" fontSize={12} tickLine={false} />
-              <YAxis domain={[0, 10]} stroke="#52525b" fontSize={12} tickLine={false} />
-              <Tooltip
-                contentStyle={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
-              />
-              <Bar dataKey="stress" fill="#ef4444" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+      {/* Comparison View */}
+      {viewMode === 'compare' && (() => {
+        // Get entries for both weeks
+        const rangeA = getWeekRange(weekA);
+        const rangeB = getWeekRange(weekB);
+        const entriesA = entries.filter(e => {
+          const date = new Date(e.timestamp);
+          return date >= rangeA.start && date <= rangeA.end;
+        });
+        const entriesB = entries.filter(e => {
+          const date = new Date(e.timestamp);
+          return date >= rangeB.start && date <= rangeB.end;
+        });
+
+        // Calculate average metrics
+        const calcAvg = (entries, metric) => {
+          if (entries.length === 0) return 0;
+          const sum = entries.reduce((s, e) => s + (e.metrics?.[metric] || 0), 0);
+          return (sum / entries.length).toFixed(1);
+        };
+
+        const metricsA = {
+          energy: calcAvg(entriesA, 'energy'),
+          mood: calcAvg(entriesA, 'mood'),
+          stress: calcAvg(entriesA, 'stress'),
+          sleep: calcAvg(entriesA, 'sleep')
+        };
+
+        const metricsB = {
+          energy: calcAvg(entriesB, 'energy'),
+          mood: calcAvg(entriesB, 'mood'),
+          stress: calcAvg(entriesB, 'stress'),
+          sleep: calcAvg(entriesB, 'sleep')
+        };
+
+        // Calculate schedule differences
+        const getEventFrequency = (entries) => {
+          const freq = {};
+          entries.forEach(e => {
+            e.events?.forEach(eventId => {
+              freq[eventId] = (freq[eventId] || 0) + 1;
+            });
+          });
+          return freq;
+        };
+
+        const eventsFreqA = getEventFrequency(entriesA);
+        const eventsFreqB = getEventFrequency(entriesB);
+        const allEventIds = [...new Set([...Object.keys(eventsFreqA), ...Object.keys(eventsFreqB)])];
+
+        // Calculate tag frequency differences
+        const getTagFrequency = (entries) => {
+          const freq = {};
+          entries.forEach(e => {
+            e.tags?.forEach(tagId => {
+              freq[tagId] = (freq[tagId] || 0) + 1;
+            });
+          });
+          return freq;
+        };
+
+        const tagsFreqA = getTagFrequency(entriesA);
+        const tagsFreqB = getTagFrequency(entriesB);
+        const allTagIds = [...new Set([...Object.keys(tagsFreqA), ...Object.keys(tagsFreqB)])];
+
+        // Generate insights
+        const insights = [];
+
+        // Metric insights
+        const energyDiff = parseFloat(metricsA.energy) - parseFloat(metricsB.energy);
+        const moodDiff = parseFloat(metricsA.mood) - parseFloat(metricsB.mood);
+        const stressDiff = parseFloat(metricsA.stress) - parseFloat(metricsB.stress);
+
+        if (Math.abs(energyDiff) >= 1.5) {
+          insights.push({
+            type: energyDiff > 0 ? 'positive' : 'neutral',
+            text: `Week A had ${Math.abs(energyDiff).toFixed(1)} ${energyDiff > 0 ? 'higher' : 'lower'} energy on average (${metricsA.energy} vs ${metricsB.energy})`
+          });
+        }
+
+        if (Math.abs(moodDiff) >= 1.5) {
+          insights.push({
+            type: moodDiff > 0 ? 'positive' : 'neutral',
+            text: `Week A had ${Math.abs(moodDiff).toFixed(1)} ${moodDiff > 0 ? 'better' : 'worse'} mood on average (${metricsA.mood} vs ${metricsB.mood})`
+          });
+        }
+
+        if (Math.abs(stressDiff) >= 1.5) {
+          insights.push({
+            type: stressDiff < 0 ? 'positive' : 'neutral',
+            text: `Week A had ${Math.abs(stressDiff).toFixed(1)} ${stressDiff > 0 ? 'higher' : 'lower'} stress on average (${metricsA.stress} vs ${metricsB.stress})`
+          });
+        }
+
+        // Event differences
+        allEventIds.forEach(eventId => {
+          const countA = eventsFreqA[eventId] || 0;
+          const countB = eventsFreqB[eventId] || 0;
+          const diff = countA - countB;
+          if (Math.abs(diff) >= 2) {
+            const event = events.find(e => e.id === eventId);
+            if (event) {
+              insights.push({
+                type: 'correlation',
+                text: `Week A had ${Math.abs(diff)} ${diff > 0 ? 'more' : 'fewer'} instances of "${event.title}" (${countA} vs ${countB})`
+              });
+            }
+          }
+        });
+
+        // Tag differences
+        const allTags = getAllPresetTags();
+        allTagIds.forEach(tagId => {
+          const countA = tagsFreqA[tagId] || 0;
+          const countB = tagsFreqB[tagId] || 0;
+          const diff = countA - countB;
+          if (Math.abs(diff) >= 2) {
+            const tag = userTags.find(t => t.id === tagId) || allTags.find(t => t.id === tagId);
+            if (tag) {
+              insights.push({
+                type: 'correlation',
+                text: `"${tag.label}" appeared ${Math.abs(diff)} ${diff > 0 ? 'more' : 'fewer'} times in Week A (${countA} vs ${countB})`
+              });
+            }
+          }
+        });
+
+        if (entriesA.length === 0 || entriesB.length === 0) {
+          return (
+            <div className="flex flex-col items-center justify-center h-96 text-center">
+              <div className="text-4xl mb-4">📊</div>
+              <h2 className="text-xl font-semibold mb-2">Not enough data</h2>
+              <p className="text-zinc-400 max-w-sm">
+                {entriesA.length === 0 ? 'Week A has no entries.' : 'Week B has no entries.'} Try selecting different weeks.
+              </p>
+            </div>
+          );
+        }
+
+        return (
+          <>
+            {/* Average Metrics Comparison */}
+            <div className="grid md:grid-cols-4 gap-4">
+              {['energy', 'mood', 'stress', 'sleep'].map(metric => {
+                const valueA = parseFloat(metricsA[metric]);
+                const valueB = parseFloat(metricsB[metric]);
+                const diff = valueA - valueB;
+                const isPositive = metric === 'stress' ? diff < 0 : diff > 0;
+
+                return (
+                  <div key={metric} className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
+                    <h3 className="text-sm text-zinc-400 mb-3 capitalize">{metric}</h3>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-blue-400">Week A</span>
+                        <span className="text-lg font-semibold">{metricsA[metric]}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-purple-400">Week B</span>
+                        <span className="text-lg font-semibold">{metricsB[metric]}</span>
+                      </div>
+                      {Math.abs(diff) >= 0.5 && (
+                        <div className={`text-xs mt-2 pt-2 border-t border-zinc-800 flex items-center gap-1 ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
+                          {isPositive ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+                          {Math.abs(diff).toFixed(1)} {isPositive ? 'better' : 'worse'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Schedule Differences */}
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
+              <h2 className="font-medium mb-4">Schedule Differences</h2>
+              {allEventIds.length > 0 ? (
+                <div className="grid md:grid-cols-2 gap-4">
+                  {allEventIds.map(eventId => {
+                    const event = events.find(e => e.id === eventId);
+                    if (!event) return null;
+                    const countA = eventsFreqA[eventId] || 0;
+                    const countB = eventsFreqB[eventId] || 0;
+
+                    return (
+                      <div key={eventId} className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg">
+                        <span className="text-sm">{event.title}</span>
+                        <div className="flex items-center gap-4">
+                          <span className="text-xs text-blue-400">{countA}x</span>
+                          <span className="text-xs text-zinc-600">vs</span>
+                          <span className="text-xs text-purple-400">{countB}x</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-zinc-500 text-sm">No scheduled events in either week.</p>
+              )}
+            </div>
+
+            {/* Tag Frequency Comparison */}
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
+              <h2 className="font-medium mb-4">Tag Frequency Comparison</h2>
+              {allTagIds.length > 0 ? (
+                <div className="grid md:grid-cols-2 gap-4">
+                  {allTagIds.map(tagId => {
+                    const tag = userTags.find(t => t.id === tagId) || allTags.find(t => t.id === tagId);
+                    if (!tag) return null;
+                    const countA = tagsFreqA[tagId] || 0;
+                    const countB = tagsFreqB[tagId] || 0;
+
+                    return (
+                      <div key={tagId} className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <span>{tag.emoji}</span>
+                          <span className="text-sm">{tag.label}</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-xs text-blue-400">{countA}x</span>
+                          <span className="text-xs text-zinc-600">vs</span>
+                          <span className="text-xs text-purple-400">{countB}x</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-zinc-500 text-sm">No tags logged in either week.</p>
+              )}
+            </div>
+
+            {/* Insights */}
+            {insights.length > 0 && (
+              <div className="bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-pink-500/10 border border-blue-500/30 rounded-2xl p-6">
+                <h2 className="font-medium mb-4 flex items-center gap-2">
+                  <Zap size={18} className="text-blue-400" />
+                  What's Different?
+                </h2>
+                <div className="space-y-2">
+                  {insights.slice(0, 6).map((insight, idx) => (
+                    <div key={idx} className="flex items-start gap-3 p-3 bg-zinc-900/50 rounded-lg">
+                      <span className="text-xl">
+                        {insight.type === 'positive' ? '✨' : insight.type === 'neutral' ? '📊' : '🔍'}
+                      </span>
+                      <p className="text-sm flex-1">{insight.text}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        );
+      })()}
+
+      {/* Trends View (only show when not in compare mode) */}
+      {viewMode === 'trends' && (
+        <>
+          {/* Main Chart */}
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
+            <h2 className="font-medium mb-4">Metrics Over Time</h2>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="energyGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="moodGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#a855f7" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="shortDate" stroke="#52525b" fontSize={12} tickLine={false} />
+                  <YAxis domain={[0, 10]} stroke="#52525b" fontSize={12} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
+                    labelStyle={{ color: '#a1a1aa' }}
+                  />
+                  <Area type="monotone" dataKey="energy" stroke="#f97316" fill="url(#energyGrad)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="mood" stroke="#a855f7" fill="url(#moodGrad)" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex justify-center gap-6 mt-4">
+              <div className="flex items-center gap-2 text-sm"><div className="w-3 h-3 rounded-full bg-orange-500"></div> Energy</div>
+              <div className="flex items-center gap-2 text-sm"><div className="w-3 h-3 rounded-full bg-purple-500"></div> Mood</div>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Tag Frequency */}
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
+              <h2 className="font-medium mb-4">Most Logged Tags</h2>
+              {tagFrequency.length > 0 ? (
+                <div className="space-y-3">
+                  {tagFrequency.map(tag => (
+                    <div key={tag.id} className="flex items-center gap-3">
+                      <span>{tag.emoji}</span>
+                      <span className="flex-1 text-sm">{tag.label}</span>
+                      <div className="w-24 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${(tag.count / tagFrequency[0].count) * 100}%`,
+                            background: tag.color
+                          }}
+                        />
+                      </div>
+                      <span className="text-sm text-zinc-500 w-8 text-right">{tag.count}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-zinc-500 text-sm">Add tags to your entries to see patterns here.</p>
+              )}
+            </div>
+
+            {/* Balance Radar */}
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
+              <h2 className="font-medium mb-4">Overall Balance</h2>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart data={radarData}>
+                    <PolarGrid stroke="#27272a" />
+                    <PolarAngleAxis dataKey="factor" stroke="#71717a" fontSize={12} />
+                    <PolarRadiusAxis domain={[0, 10]} tick={false} axisLine={false} />
+                    <Radar dataKey="value" stroke="#4a9eff" fill="#4a9eff" fillOpacity={0.3} strokeWidth={2} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          {/* Stress Chart */}
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
+            <h2 className="font-medium mb-4">Stress Levels</h2>
+            <div className="h-40">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData}>
+                  <XAxis dataKey="shortDate" stroke="#52525b" fontSize={12} tickLine={false} />
+                  <YAxis domain={[0, 10]} stroke="#52525b" fontSize={12} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
+                  />
+                  <Bar dataKey="stress" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };
@@ -2239,6 +3041,378 @@ const CalendarView = ({ events, entries, onEditEvent, onDeleteEvent, onNewEvent,
   );
 };
 
+// Weekly Report View
+const WeeklyReportView = ({ entries, events, profile, userTags = [], categories = [] }) => {
+  const [selectedWeek, setSelectedWeek] = useState(0); // 0 = current week, 1 = last week, etc.
+
+  // Get week date range
+  const getWeekRange = (weeksAgo = 0) => {
+    const now = new Date();
+    const endOfWeek = new Date(now);
+    endOfWeek.setDate(now.getDate() - now.getDay() + (weeksAgo === 0 ? 0 : -7 * weeksAgo));
+    endOfWeek.setHours(23, 59, 59, 999);
+
+    const startOfWeek = new Date(endOfWeek);
+    startOfWeek.setDate(endOfWeek.getDate() - 6);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    return { start: startOfWeek, end: endOfWeek };
+  };
+
+  const currentWeek = getWeekRange(selectedWeek);
+  const previousWeek = getWeekRange(selectedWeek + 1);
+
+  // Filter entries for selected week
+  const weekEntries = entries.filter(e => {
+    const d = new Date(e.timestamp);
+    return d >= currentWeek.start && d <= currentWeek.end;
+  });
+
+  const prevWeekEntries = entries.filter(e => {
+    const d = new Date(e.timestamp);
+    return d >= previousWeek.start && d <= previousWeek.end;
+  });
+
+  // Helper functions
+  const avgMetric = (arr, key) => arr.length ? (arr.reduce((s, e) => s + (e.metrics?.[key] || 0), 0) / arr.length).toFixed(1) : 0;
+
+  const getChange = (current, previous) => {
+    const diff = parseFloat(current) - parseFloat(previous);
+    return diff.toFixed(1);
+  };
+
+  // Calculate stats
+  const stats = {
+    energy: avgMetric(weekEntries, 'energy'),
+    mood: avgMetric(weekEntries, 'mood'),
+    stress: avgMetric(weekEntries, 'stress'),
+    sleep: avgMetric(weekEntries, 'sleep'),
+    prevEnergy: avgMetric(prevWeekEntries, 'energy'),
+    prevMood: avgMetric(prevWeekEntries, 'mood'),
+    prevStress: avgMetric(prevWeekEntries, 'stress'),
+    prevSleep: avgMetric(prevWeekEntries, 'sleep'),
+  };
+
+  // Find best and worst days
+  const daysWithScores = weekEntries.reduce((acc, entry) => {
+    const day = new Date(entry.timestamp).toDateString();
+    if (!acc[day]) acc[day] = { entries: [], date: day };
+    acc[day].entries.push(entry);
+    return acc;
+  }, {});
+
+  const dayScores = Object.values(daysWithScores).map(day => {
+    const avgEnergy = avgMetric(day.entries, 'energy');
+    const avgMood = avgMetric(day.entries, 'mood');
+    const avgStress = avgMetric(day.entries, 'stress');
+    const score = parseFloat(avgEnergy) + parseFloat(avgMood) - parseFloat(avgStress) * 0.5;
+    return { date: day.date, score, energy: avgEnergy, mood: avgMood, stress: avgStress };
+  }).sort((a, b) => b.score - a.score);
+
+  const bestDay = dayScores[0];
+  const worstDay = dayScores[dayScores.length - 1];
+
+  // Analyze helpful factors
+  const getTagName = (tagId) => {
+    const tag = userTags.find(t => t.id === tagId);
+    return tag ? { name: tag.label, emoji: tag.emoji } : null;
+  };
+
+  const tagImpact = {};
+  weekEntries.forEach(entry => {
+    const entryScore = (entry.metrics?.energy || 0) + (entry.metrics?.mood || 0);
+    entry.tags?.forEach(tagId => {
+      if (!tagImpact[tagId]) tagImpact[tagId] = { total: 0, count: 0 };
+      tagImpact[tagId].total += entryScore;
+      tagImpact[tagId].count += 1;
+    });
+  });
+
+  const tagAverages = Object.keys(tagImpact)
+    .map(tagId => {
+      const tag = getTagName(tagId);
+      if (!tag) return null;
+      return {
+        ...tag,
+        avg: tagImpact[tagId].total / tagImpact[tagId].count,
+        count: tagImpact[tagId].count
+      };
+    })
+    .filter(t => t && t.count >= 2)
+    .sort((a, b) => b.avg - a.avg);
+
+  const helpfulFactors = tagAverages.slice(0, 3);
+  const harmfulFactors = tagAverages.slice(-3).reverse();
+
+  // Schedule load
+  const weekEventIds = new Set();
+  weekEntries.forEach(e => e.events?.forEach(id => weekEventIds.add(id)));
+  const scheduleLoad = weekEventIds.size;
+
+  // Get events for the week
+  const weekEvents = events.filter(e => {
+    if (e.type === 'one-time') {
+      const eventDate = new Date(e.date);
+      return eventDate >= currentWeek.start && eventDate <= currentWeek.end;
+    }
+    // For recurring events, they could appear any day
+    return true;
+  });
+
+  const totalEventOccurrences = weekEntries.reduce((sum, entry) => sum + (entry.events?.length || 0), 0);
+
+  if (weekEntries.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 text-center">
+        <div className="text-4xl mb-4">📊</div>
+        <h2 className="text-xl font-semibold mb-2">No data for this week</h2>
+        <p className="text-zinc-400 max-w-sm">There are no entries logged for this week period.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 max-w-4xl mx-auto">
+      {/* Header with week selector */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Weekly Report</h1>
+          <p className="text-sm text-zinc-500">
+            {currentWeek.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {currentWeek.end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setSelectedWeek(prev => prev + 1)}
+            className="p-2 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <button
+            onClick={() => setSelectedWeek(prev => Math.max(0, prev - 1))}
+            disabled={selectedWeek === 0}
+            className="p-2 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      </div>
+
+      {/* Summary Stats */}
+      <div className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-2xl p-6">
+        <h2 className="font-medium mb-4 text-lg">Weekly Overview</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-zinc-900/50 rounded-xl p-4">
+            <div className="text-sm text-zinc-500 mb-1">Avg Energy</div>
+            <div className="flex items-baseline gap-2">
+              <div className="text-2xl font-bold text-orange-400">{stats.energy}</div>
+              {prevWeekEntries.length > 0 && (
+                <div className={`text-sm ${parseFloat(getChange(stats.energy, stats.prevEnergy)) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {parseFloat(getChange(stats.energy, stats.prevEnergy)) >= 0 ? '↑' : '↓'}{Math.abs(parseFloat(getChange(stats.energy, stats.prevEnergy)))}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="bg-zinc-900/50 rounded-xl p-4">
+            <div className="text-sm text-zinc-500 mb-1">Avg Mood</div>
+            <div className="flex items-baseline gap-2">
+              <div className="text-2xl font-bold text-purple-400">{stats.mood}</div>
+              {prevWeekEntries.length > 0 && (
+                <div className={`text-sm ${parseFloat(getChange(stats.mood, stats.prevMood)) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {parseFloat(getChange(stats.mood, stats.prevMood)) >= 0 ? '↑' : '↓'}{Math.abs(parseFloat(getChange(stats.mood, stats.prevMood)))}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="bg-zinc-900/50 rounded-xl p-4">
+            <div className="text-sm text-zinc-500 mb-1">Avg Stress</div>
+            <div className="flex items-baseline gap-2">
+              <div className="text-2xl font-bold text-red-400">{stats.stress}</div>
+              {prevWeekEntries.length > 0 && (
+                <div className={`text-sm ${parseFloat(getChange(stats.stress, stats.prevStress)) <= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {parseFloat(getChange(stats.stress, stats.prevStress)) <= 0 ? '↓' : '↑'}{Math.abs(parseFloat(getChange(stats.stress, stats.prevStress)))}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="bg-zinc-900/50 rounded-xl p-4">
+            <div className="text-sm text-zinc-500 mb-1">Avg Sleep</div>
+            <div className="flex items-baseline gap-2">
+              <div className="text-2xl font-bold text-blue-400">{stats.sleep}</div>
+              {prevWeekEntries.length > 0 && (
+                <div className={`text-sm ${parseFloat(getChange(stats.sleep, stats.prevSleep)) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {parseFloat(getChange(stats.sleep, stats.prevSleep)) >= 0 ? '↑' : '↓'}{Math.abs(parseFloat(getChange(stats.sleep, stats.prevSleep)))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Best & Worst Days */}
+        {bestDay && worstDay && (
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
+            <h2 className="font-medium mb-4">Best & Worst Days</h2>
+            <div className="space-y-4">
+              <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">🌟</span>
+                  <div className="text-sm font-medium text-green-400">Best Day</div>
+                </div>
+                <div className="text-sm text-zinc-300">{new Date(bestDay.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
+                <div className="flex gap-3 mt-2 text-xs">
+                  <span className="text-orange-400">⚡{bestDay.energy}</span>
+                  <span className="text-purple-400">🎯{bestDay.mood}</span>
+                  <span className="text-red-400">🔥{bestDay.stress}</span>
+                </div>
+              </div>
+              <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">⚠️</span>
+                  <div className="text-sm font-medium text-red-400">Toughest Day</div>
+                </div>
+                <div className="text-sm text-zinc-300">{new Date(worstDay.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
+                <div className="flex gap-3 mt-2 text-xs">
+                  <span className="text-orange-400">⚡{worstDay.energy}</span>
+                  <span className="text-purple-400">🎯{worstDay.mood}</span>
+                  <span className="text-red-400">🔥{worstDay.stress}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Schedule Load */}
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
+          <h2 className="font-medium mb-4">Schedule Load</h2>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-zinc-400">Entries logged</span>
+              <span className="font-mono font-bold text-lg">{weekEntries.length}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-zinc-400">Unique events</span>
+              <span className="font-mono font-bold text-lg">{scheduleLoad}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-zinc-400">Total event occurrences</span>
+              <span className="font-mono font-bold text-lg">{totalEventOccurrences}</span>
+            </div>
+            <div className="pt-3 border-t border-zinc-800">
+              <div className="text-sm text-zinc-500 mb-2">Most frequent events:</div>
+              {(() => {
+                const eventCounts = {};
+                weekEntries.forEach(entry => {
+                  entry.events?.forEach(eventId => {
+                    eventCounts[eventId] = (eventCounts[eventId] || 0) + 1;
+                  });
+                });
+                const topEvents = Object.entries(eventCounts)
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 3)
+                  .map(([id, count]) => {
+                    const event = events.find(e => e.id === id);
+                    return event ? { ...event, count } : null;
+                  })
+                  .filter(e => e);
+
+                if (topEvents.length === 0) {
+                  return <div className="text-xs text-zinc-600">No events tracked</div>;
+                }
+
+                return topEvents.map(event => (
+                  <div key={event.id} className="flex items-center justify-between text-sm py-1">
+                    <span className="flex items-center gap-2">
+                      <span>{event.emoji}</span>
+                      <span>{event.title}</span>
+                    </span>
+                    <span className="text-zinc-500">{event.count}×</span>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Helpful & Harmful Factors */}
+      {(helpfulFactors.length > 0 || harmfulFactors.length > 0) && (
+        <div className="grid md:grid-cols-2 gap-6">
+          {helpfulFactors.length > 0 && (
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
+              <h2 className="font-medium mb-4 flex items-center gap-2">
+                <span className="text-green-400">✨</span>
+                What Helped
+              </h2>
+              <div className="space-y-2">
+                {helpfulFactors.map((factor, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                    <span className="flex items-center gap-2 text-sm">
+                      <span>{factor.emoji}</span>
+                      <span>{factor.name}</span>
+                    </span>
+                    <span className="text-xs text-green-400 font-mono">{factor.avg.toFixed(1)} avg</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {harmfulFactors.length > 0 && (
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
+              <h2 className="font-medium mb-4 flex items-center gap-2">
+                <span className="text-red-400">⚠️</span>
+                What Hurt
+              </h2>
+              <div className="space-y-2">
+                {harmfulFactors.map((factor, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                    <span className="flex items-center gap-2 text-sm">
+                      <span>{factor.emoji}</span>
+                      <span>{factor.name}</span>
+                    </span>
+                    <span className="text-xs text-red-400 font-mono">{factor.avg.toFixed(1)} avg</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Week vs Previous Week */}
+      {prevWeekEntries.length > 0 && (
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
+          <h2 className="font-medium mb-4">Week Over Week Comparison</h2>
+          <div className="space-y-3 text-sm">
+            <div className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg">
+              <span className="text-zinc-400">Entries logged</span>
+              <span className="flex items-center gap-2">
+                <span>{prevWeekEntries.length}</span>
+                <span className="text-zinc-600">→</span>
+                <span className="font-bold">{weekEntries.length}</span>
+                {weekEntries.length > prevWeekEntries.length && (
+                  <span className="text-green-400 text-xs">+{weekEntries.length - prevWeekEntries.length}</span>
+                )}
+              </span>
+            </div>
+            <div className="p-3 bg-zinc-800/50 rounded-lg">
+              <div className="text-zinc-500 mb-2">Overall trend</div>
+              <div className="text-sm text-zinc-300">
+                {parseFloat(stats.energy) > parseFloat(stats.prevEnergy) && parseFloat(stats.mood) > parseFloat(stats.prevMood)
+                  ? "📈 This week was better overall - higher energy and mood!"
+                  : parseFloat(stats.energy) < parseFloat(stats.prevEnergy) && parseFloat(stats.mood) < parseFloat(stats.prevMood)
+                  ? "📉 This week was tougher - lower energy and mood than last week."
+                  : "📊 Mixed week - some metrics up, others down."}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // History View
 const HistoryView = ({ entries, onEdit, onDelete, locationTags = [], userTags = [] }) => {
   const [filter, setFilter] = useState('all');
@@ -2402,7 +3576,7 @@ const ChatView = ({ profile, entries, events, onNavigate }) => {
 Entries: ${entries.length} total entries
 Recent entries: ${entries.slice(-5).map(e => {
   const date = new Date(e.timestamp);
-  return `${date.toLocaleDateString()} - Energy: ${e.energyLevel}/10, Mood: ${e.moodLevel}/10${e.tags ? `, Tags: ${e.tags.join(', ')}` : ''}`;
+  return `${date.toLocaleDateString()} - Energy: ${e.metrics?.energy || 5}/10, Mood: ${e.metrics?.mood || 5}/10${e.tags ? `, Tags: ${e.tags.join(', ')}` : ''}`;
 }).join('\n')}
 
 Events: ${events.length} calendar events scheduled
@@ -2547,6 +3721,10 @@ const SettingsView = ({ profile, settings, onUpdateProfile, onUpdateSettings, on
   const [categoryName, setCategoryName] = useState('');
   const [categoryColor, setCategoryColor] = useState('#4a9eff');
   const [deletingCategory, setDeletingCategory] = useState(null);
+  const [showHabitForm, setShowHabitForm] = useState(false);
+  const [habitName, setHabitName] = useState('');
+  const [habitEmoji, setHabitEmoji] = useState('✅');
+  const [habitColor, setHabitColor] = useState('#22c55e');
 
   const handleSaveName = () => {
     onUpdateProfile({ ...profile, name });
@@ -2648,6 +3826,38 @@ const SettingsView = ({ profile, settings, onUpdateProfile, onUpdateSettings, on
     }
 
     setDeletingCategory(null);
+  };
+
+  const handleCreateHabit = () => {
+    if (!habitName.trim()) return;
+
+    const newHabit = {
+      id: `habit-${Date.now()}`,
+      label: habitName.trim(),
+      emoji: habitEmoji,
+      color: habitColor
+    };
+
+    const updatedProfile = {
+      ...profile,
+      habits: [...(profile.habits || []), newHabit]
+    };
+
+    onUpdateProfile(updatedProfile);
+
+    // Reset form
+    setHabitName('');
+    setHabitEmoji('✅');
+    setHabitColor('#22c55e');
+    setShowHabitForm(false);
+  };
+
+  const handleDeleteHabit = (habitId) => {
+    const updatedProfile = {
+      ...profile,
+      habits: (profile.habits || []).filter(h => h.id !== habitId)
+    };
+    onUpdateProfile(updatedProfile);
   };
 
   return (
@@ -2992,6 +4202,123 @@ const SettingsView = ({ profile, settings, onUpdateProfile, onUpdateSettings, on
         </div>
       </div>
 
+      {/* Daily Habits */}
+      <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
+        <h2 className="font-medium mb-4">Daily Habits</h2>
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm text-zinc-400 block mb-2">Track your daily habits ({profile.habits?.length || 0})</label>
+            <p className="text-xs text-zinc-500 mb-4">Create habits you want to build. Check them off each day and track your streaks!</p>
+            {profile.habits && profile.habits.length > 0 ? (
+              <div className="grid gap-2 mb-4">
+                {profile.habits.map(habit => (
+                  <div
+                    key={habit.id}
+                    className="flex items-center justify-between p-3 rounded-lg border group hover:border-zinc-600 transition-colors"
+                    style={{ backgroundColor: `${habit.color}20`, borderColor: `${habit.color}40` }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{habit.emoji}</span>
+                      <span className="text-sm font-medium">{habit.label}</span>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteHabit(habit.id)}
+                      className="p-1 opacity-0 group-hover:opacity-100 hover:bg-zinc-800 rounded transition-all"
+                    >
+                      <Trash2 size={12} className="text-red-400" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-500 mb-4">No habits yet. Create your first one!</p>
+            )}
+          </div>
+
+          {!showHabitForm ? (
+            <button
+              onClick={() => setShowHabitForm(true)}
+              className="w-full flex items-center justify-center gap-2 p-3 bg-zinc-800/50 border border-dashed border-zinc-700 rounded-xl hover:border-zinc-600 hover:bg-zinc-800 transition-colors"
+            >
+              <Plus size={16} className="text-zinc-500" />
+              <span className="text-sm text-zinc-500">Create habit</span>
+            </button>
+          ) : (
+            <div className="p-4 bg-zinc-800/50 border border-zinc-700 rounded-xl space-y-3">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-medium">Create habit</h4>
+                <button onClick={() => {
+                  setShowHabitForm(false);
+                  setHabitName('');
+                  setHabitEmoji('✅');
+                  setHabitColor('#22c55e');
+                }} className="text-zinc-500 hover:text-zinc-400">
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={habitEmoji}
+                  onChange={(e) => setHabitEmoji(e.target.value)}
+                  placeholder="✅"
+                  maxLength={2}
+                  className="w-16 px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-center text-xl focus:outline-none focus:border-blue-500"
+                />
+                <input
+                  type="text"
+                  value={habitName}
+                  onChange={(e) => setHabitName(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleCreateHabit()}
+                  placeholder="Habit name (e.g., Worked out, Studied, 7+ hours sleep)"
+                  autoFocus
+                  className="flex-1 px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-zinc-500 block mb-2">Color</label>
+                <div className="flex gap-2">
+                  {eventColors.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => setHabitColor(c.color)}
+                      className={`w-8 h-8 rounded-lg transition-all ${
+                        habitColor === c.color ? 'ring-2 ring-white ring-offset-2 ring-offset-zinc-900' : 'opacity-50 hover:opacity-100'
+                      }`}
+                      style={{ backgroundColor: c.color }}
+                      title={c.label}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setShowHabitForm(false);
+                    setHabitName('');
+                    setHabitEmoji('✅');
+                    setHabitColor('#22c55e');
+                  }}
+                  className="flex-1 py-2 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateHabit}
+                  disabled={!habitName.trim()}
+                  className="flex-1 py-2 bg-green-500 rounded-lg hover:bg-green-600 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Create
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* AI Assistant */}
       <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
@@ -3285,6 +4612,7 @@ export default function PatternApp() {
     { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'schedule', label: 'Schedule', icon: Activity, badge: events.length > 0 ? events.length : null },
     { id: 'trends', label: 'Trends', icon: TrendingUp },
+    { id: 'report', label: 'Weekly Report', icon: FileText },
     { id: 'history', label: 'History', icon: BookOpen },
     ...(profile.aiAssistantEnabled ? [{ id: 'chat', label: 'AI Chat', icon: MessageSquare }] : []),
     { id: 'settings', label: 'Settings', icon: Settings },
@@ -3390,7 +4718,10 @@ export default function PatternApp() {
             />
           )}
           {currentView === 'trends' && (
-            <TrendsView entries={entries} userTags={userTags} />
+            <TrendsView entries={entries} userTags={userTags} events={events} />
+          )}
+          {currentView === 'report' && (
+            <WeeklyReportView entries={entries} events={events} profile={profile} userTags={userTags} categories={eventCategories} />
           )}
           {currentView === 'history' && (
             <HistoryView entries={entries} onEdit={handleEditEntry} onDelete={handleDeleteEntry} locationTags={locationTags} userTags={userTags} />
@@ -3425,6 +4756,7 @@ export default function PatternApp() {
         allEntries={entries}
         onCreateCustomTag={handleCreateCustomTag}
         categories={eventCategories}
+        habits={profile.habits || []}
       />
 
       {/* Event Modal */}
