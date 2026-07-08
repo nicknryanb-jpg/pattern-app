@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 import { Home, TrendingUp, Calendar, Activity, BookOpen, Users, Search, MessageSquare, Settings, Plus, X, ChevronRight, ChevronLeft, Moon, Sun, Zap, Target, Flame, Clock, Check, ArrowUp, ArrowDown, Minus, Edit3, Trash2, Filter, Download, FileText } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 
 // Utility functions
 const formatDate = (date) => new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -4781,6 +4782,7 @@ export default function PatternApp() {
           animation: fadeIn 0.4s ease-out;
         }
       `}</style>
+      <Analytics />
     </div>
   );
 }
